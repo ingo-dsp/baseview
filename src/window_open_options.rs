@@ -10,6 +10,7 @@ pub enum WindowScalePolicy {
 }
 
 /// The options for opening a new window
+#[derive(Debug, Clone)]
 pub struct WindowOpenOptions {
     pub title: String,
 
