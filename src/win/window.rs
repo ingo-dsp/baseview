@@ -126,7 +126,7 @@ unsafe extern "system" fn wnd_proc(
     }
 
     let window_state_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut RefCell<WindowState>;
-    if !window_state_ptr.is_null() {
+    if !window_state_ptr.is_null() && (*window_state_ptr).try_borrow_mut().is_ok() {
         match msg {
             WM_MOUSEMOVE => {
                 let mut window_state = (*window_state_ptr).borrow_mut();
@@ -331,6 +331,10 @@ unsafe extern "system" fn wnd_proc(
                 }
             }
         }
+    }
+
+    if !window_state_ptr.is_null() && (*window_state_ptr).try_borrow_mut().is_err() {
+        eprintln!("ERROR: Cannot borrow mutably in wnd_proc()");
     }
 
     DefWindowProcW(hwnd, msg, wparam, lparam)
