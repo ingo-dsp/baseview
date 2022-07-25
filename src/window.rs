@@ -26,23 +26,27 @@ pub(crate) struct RawWindowHandleWrapper {
 
 impl WindowHandle {
     fn new(window_handle: platform::WindowHandle) -> Self {
+        log::warn!("WindowHandle2::new()");
         Self { window_handle, phantom: PhantomData::default() }
     }
 
     /// Close the window
     pub fn close(&mut self) {
+        log::warn!("WindowHandle2::close()");
         self.window_handle.close();
     }
 
     /// Returns `true` if the window is still open, and returns `false`
     /// if the window was closed/dropped.
     pub fn is_open(&self) -> bool {
+        log::warn!("WindowHandle2::is_open()");
         self.window_handle.is_open()
     }
 }
 
 unsafe impl HasRawWindowHandle for WindowHandle {
     fn raw_window_handle(&self) -> RawWindowHandle {
+        log::warn!("HasRawWindowHandle2::raw_window_handle()");
         self.window_handle.raw_window_handle()
     }
 }
@@ -70,6 +74,8 @@ impl<'a> Window<'a> {
         B: FnOnce(&mut Window) -> H,
         B: Send + 'static,
     {
+        log::warn!("open_parented2");
+
         let window_handle = platform::Window::open_parented::<P, H, B>(parent, options, build);
         WindowHandle::new(window_handle)
     }
@@ -80,6 +86,8 @@ impl<'a> Window<'a> {
         B: FnOnce(&mut Window) -> H,
         B: Send + 'static,
     {
+        log::warn!("open_as_if_parented2");
+
         let window_handle = platform::Window::open_as_if_parented::<H, B>(options, build);
         WindowHandle::new(window_handle)
     }
@@ -90,11 +98,15 @@ impl<'a> Window<'a> {
         B: FnOnce(&mut Window) -> H,
         B: Send + 'static,
     {
+        log::warn!("open_blocking2");
+
         platform::Window::open_blocking::<H, B>(options, build)
     }
 
     /// Close the window
     pub fn close(&mut self) {
+        log::warn!("close2");
+
         self.window.close();
     }
 
@@ -102,18 +114,23 @@ impl<'a> Window<'a> {
     /// access this context through [crate::Window::gl_context].
     #[cfg(feature = "opengl")]
     pub fn gl_context(&self) -> Option<&crate::gl::GlContext> {
+        log::warn!("gl_context2");
+
         self.window.gl_context()
     }
 }
 
 unsafe impl<'a> HasRawWindowHandle for Window<'a> {
     fn raw_window_handle(&self) -> RawWindowHandle {
+        log::warn!("HasRawWindowHandle::raw_window_handle3()");
+
         self.window.raw_window_handle()
     }
 }
 
 unsafe impl HasRawWindowHandle for RawWindowHandleWrapper {
     fn raw_window_handle(&self) -> RawWindowHandle {
+        log::warn!("HasRawWindowHandle::raw_window_handle4()");
         self.handle
     }
 }

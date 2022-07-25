@@ -38,6 +38,7 @@ use super::keyboard::KeyboardState;
 use crate::{gl::GlContext, window::RawWindowHandleWrapper};
 
 unsafe fn generate_guid() -> String {
+    log::warn!("generate_guid()");
     let mut guid: GUID = std::mem::zeroed();
     CoCreateGuid(&mut guid);
     format!(
@@ -68,8 +69,10 @@ pub struct WindowHandle {
 
 impl WindowHandle {
     pub fn close(&mut self) {
+        log::warn!("WindowHandle::close()");
         if let Some(hwnd) = self.hwnd.take() {
             unsafe {
+                log::warn!("WindowHandle::close() -> PostMessageW");
                 PostMessageW(hwnd, BV_WINDOW_MUST_CLOSE, 0, 0);
             }
         }
@@ -82,12 +85,17 @@ impl WindowHandle {
 
 unsafe impl HasRawWindowHandle for WindowHandle {
     fn raw_window_handle(&self) -> RawWindowHandle {
+        log::warn!("HasRawWindowHandle::raw_window_handle()");
+
         if let Some(hwnd) = self.hwnd {
+            log::warn!("HasRawWindowHandle::raw_window_handle() -> take handle");
             let mut handle = Win32Handle::empty();
             handle.hwnd = hwnd as *mut c_void;
 
             RawWindowHandle::Win32(handle)
         } else {
+            log::warn!("HasRawWindowHandle::raw_window_handle() -> empty handle");
+
             RawWindowHandle::Win32(Win32Handle::empty())
         }
     }
@@ -99,6 +107,8 @@ struct ParentHandle {
 
 impl ParentHandle {
     pub fn new(hwnd: HWND) -> (Self, WindowHandle) {
+        log::warn!("ParentHandle::new()");
+
         let is_open = Arc::new(AtomicBool::new(true));
 
         let handle = WindowHandle {
@@ -113,6 +123,7 @@ impl ParentHandle {
 
 impl Drop for ParentHandle {
     fn drop(&mut self) {
+        log::warn!("ParentHandle::drop()");
         self.is_open.store(false, Ordering::Relaxed);
     }
 }
@@ -120,16 +131,21 @@ impl Drop for ParentHandle {
 unsafe extern "system" fn wnd_proc(
     hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM,
 ) -> LRESULT {
+    log::warn!("wnd_proc()");
+
     if msg == WM_CREATE {
+        log::warn!("wnd_proc() -> WM_CREATE -> PostMessageW");
         PostMessageW(hwnd, WM_SHOWWINDOW, 0, 0);
         return 0;
     }
 
-
+    log::warn!("wnd_proc() -> GetWindowLongPtrW");
     let window_state_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut RefCell<WindowState>;
-    if !window_state_ptr.is_null() && (*window_state_ptr).try_borrow_mut().is_ok() {
+    if !window_state_ptr.is_null() {
+        log::warn!("wnd_proc() -> window_state_ptr != null");
         match msg {
             WM_MOUSEMOVE => {
+                log::warn!("WM_MOUSEMOVE: borrow_mut()");
                 let mut window_state = (*window_state_ptr).borrow_mut();
                 let mut window = window_state.create_window(hwnd);
                 let mut window = crate::Window::new(&mut window);
@@ -141,13 +157,18 @@ unsafe extern "system" fn wnd_proc(
 
                 let logical_pos = physical_pos.to_logical(&window_state.window_info);
 
+                log::warn!("WM_MOUSEMOVE: enter on_event()");
                 window_state.handler.on_event(
                     &mut window,
                     Event::Mouse(MouseEvent::CursorMoved { position: logical_pos }),
                 );
+                log::warn!("WM_MOUSEMOVE: leave on_event()");
+                log::warn!("WM_MOUSEMOVE: return borrow_mut");
                 return 0;
             }
             WM_MOUSEWHEEL => {
+                log::warn!("WM_MOUSEWHEEL: borrow_mut()");
+
                 let mut window_state = (*window_state_ptr).borrow_mut();
                 let mut window = window_state.create_window(hwnd);
                 let mut window = crate::Window::new(&mut window);
@@ -156,6 +177,7 @@ unsafe extern "system" fn wnd_proc(
                 let value = value as i32;
                 let value = value as f32 / WHEEL_DELTA as f32;
 
+                log::warn!("WM_MOUSEWHEEL: enter on_event()");
                 window_state.handler.on_event(
                     &mut window,
                     Event::Mouse(MouseEvent::WheelScrolled(ScrollDelta::Lines {
@@ -163,10 +185,15 @@ unsafe extern "system" fn wnd_proc(
                         y: value,
                     })),
                 );
+                log::warn!("WM_MOUSEWHEEL: leave on_event()");
+                log::warn!("WM_MOUSEWHEEL: return borrow_mut");
                 return 0;
             }
             WM_LBUTTONDOWN | WM_LBUTTONUP | WM_MBUTTONDOWN | WM_MBUTTONUP | WM_RBUTTONDOWN
             | WM_RBUTTONUP | WM_XBUTTONDOWN | WM_XBUTTONUP => {
+                log::warn!("WM_XXBUTTONDOWN: borrow_mut()");
+
+
                 let mut window_state = (*window_state_ptr).borrow_mut();
                 let mut window = window_state.create_window(hwnd);
                 let mut window = crate::Window::new(&mut window);
@@ -209,29 +236,49 @@ unsafe extern "system" fn wnd_proc(
 
                     window_state.mouse_button_counter = mouse_button_counter;
 
+                    log::warn!("WM_XXBUTTONDOWN: enter on_event()");
                     window_state.handler.on_event(&mut window, Event::Mouse(event));
+                    log::warn!("WM_XXBUTTONDOWN: leave on_event()");
                 }
+
+
+                log::warn!("WM_XXBUTTONDOWN: return borrow_mut");
             }
             WM_TIMER => {
+                log::warn!("WM_TIMER: borrow_mut()");
+
                 let mut window_state = (*window_state_ptr).borrow_mut();
                 let mut window = window_state.create_window(hwnd);
                 let mut window = crate::Window::new(&mut window);
 
                 if wparam == WIN_FRAME_TIMER {
+
+                    log::warn!("WM_TIMER: enter on_event()");
                     window_state.handler.on_frame(&mut window);
+                    log::warn!("WM_TIMER: leave on_event()");
                 }
+                log::warn!("WM_TIMER: return borrow_mut");
+
                 return 0;
             }
             WM_CLOSE => {
+
+
                 // Make sure to release the borrow before the DefWindowProc call
                 {
+
+                    log::warn!("WM_MOUSEMOVE: borrow_mut()");
                     let mut window_state = (*window_state_ptr).borrow_mut();
                     let mut window = window_state.create_window(hwnd);
                     let mut window = crate::Window::new(&mut window);
 
+                    log::warn!("WM_MOUSEMOVE: enter on_event()");
                     window_state
                         .handler
                         .on_event(&mut window, Event::Window(WindowEvent::WillClose));
+
+                    log::warn!("WM_MOUSEMOVE: leave on_event()");
+                    log::warn!("WM_MOUSEMOVE: return borrow_mut");
                 }
 
                 // DestroyWindow(hwnd);
@@ -240,22 +287,36 @@ unsafe extern "system" fn wnd_proc(
             }
             WM_CHAR | WM_SYSCHAR | WM_KEYDOWN | WM_SYSKEYDOWN | WM_KEYUP | WM_SYSKEYUP
             | WM_INPUTLANGCHANGE => {
+                log::warn!("WM_MOUSEMOVE: borrow_mut()");
+
+
                 let mut window_state = (*window_state_ptr).borrow_mut();
                 let mut window = window_state.create_window(hwnd);
                 let mut window = crate::Window::new(&mut window);
 
+                log::warn!("WM_CHAR_XX_KEY_UP_DOWN: return borrow_mut");
+                log::warn!("WM_CHAR_XX_KEY_UP_DOWN: enter process_message()");
                 let opt_event =
                     window_state.keyboard_state.process_message(hwnd, msg, wparam, lparam);
+                log::warn!("WM_CHAR_XX_KEY_UP_DOWN: leave process_message()");
 
+
+                log::warn!("WM_CHAR_XX_KEY_UP_DOWN: enter on_event()");
                 if let Some(event) = opt_event {
                     window_state.handler.on_event(&mut window, Event::Keyboard(event));
                 }
+                log::warn!("WM_CHAR_XX_KEY_UP_DOWN: leave on_event()");
+                log::warn!("WM_CHAR_XX_KEY_UP_DOWN: return borrow_mut");
 
                 if msg != WM_SYSKEYDOWN {
+                    log::warn!("WM_CHAR_XX_KEY_UP_DOWN: return 0 (skip default handler)");
                     return 0;
                 }
             }
             WM_SIZE => {
+                log::warn!("WM_SIZE: borrow_mut()");
+
+
                 let mut window_state = (*window_state_ptr).borrow_mut();
                 let mut window = window_state.create_window(hwnd);
                 let mut window = crate::Window::new(&mut window);
@@ -270,11 +331,18 @@ unsafe extern "system" fn wnd_proc(
 
                 let window_info = window_state.window_info;
 
+                log::warn!("WM_SIZE: enter on_event()");
                 window_state
                     .handler
                     .on_event(&mut window, Event::Window(WindowEvent::Resized(window_info)));
+
+                log::warn!("WM_SIZE: leave on_event()");
+                log::warn!("WM_SIZE: return borrow_mut");
             }
             WM_DPICHANGED => {
+                log::warn!("WM_DPICHANGED: borrow_mut()");
+
+
                 let mut window_state = (*window_state_ptr).borrow_mut();
 
                 // To avoid weirdness with the realtime borrow checker.
@@ -303,10 +371,15 @@ unsafe extern "system" fn wnd_proc(
                     }
                 };
                 if let Some((mut new_rect, dw_style)) = new_rect {
+
+                    log::warn!("WM_DPICHANGED: enter AdjustWindowRectEx()");
                     // Convert this desired "client rectangle" size to the actual "window rectangle"
                     // size (Because of course you have to do that).
                     AdjustWindowRectEx(&mut new_rect, dw_style, 0, 0);
 
+                    log::warn!("WM_DPICHANGED: leave AdjustWindowRectEx()");
+
+                    log::warn!("WM_DPICHANGED: enter SetWindowPos()");
                     // Windows makes us resize the window manually. This will trigger another `WM_SIZE` event,
                     // which we can then send the user the new scale factor.
                     SetWindowPos(
@@ -318,30 +391,48 @@ unsafe extern "system" fn wnd_proc(
                         new_rect.bottom - new_rect.top,
                         SWP_NOZORDER | SWP_NOMOVE,
                     );
+                    log::warn!("WM_DPICHANGED: leave SetWindowPos()");
                 }
+                log::warn!("WM_DPICHANGED: return borrow_mut");
             }
             WM_NCDESTROY => {
+                log::warn!("WM_NCDESTROY: borrow_mut()");
+
+
                 let window_state = Box::from_raw(window_state_ptr);
+
+                log::warn!("WM_NCDESTROY: enter unregister_wnd_class()");
                 unregister_wnd_class(window_state.borrow().window_class);
+                log::warn!("WM_NCDESTROY: leave unregister_wnd_class()");
+
+
+                log::warn!("WM_NCDESTROY: enter on_event()");
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+                log::warn!("WM_NCDESTROY: leave SetWindowLongPtrW()");
+
+                log::warn!("WM_NCDESTROY: return borrow_mut");
             }
             _ => {
+                log::warn!("ELSE BRANCH -> NO borrow_mut() is called...");
+
+
                 if msg == BV_WINDOW_MUST_CLOSE {
+                    log::warn!("ELSE BRANCH: BV_WINDOW_MUST_CLOSE -> enter DestroyWindow()");
                     DestroyWindow(hwnd);
+                    log::warn!("ELSE BRANCH: BV_WINDOW_MUST_CLOSE -> leave DestroyWindow() -> skip default handler");
                     return 0;
                 }
             }
         }
     }
-
-    if !window_state_ptr.is_null() && (*window_state_ptr).try_borrow_mut().is_err() {
-        eprintln!("ERROR: Cannot borrow mutably in wnd_proc()");
-    }
+    log::warn!("wnd_proc done -> Call DefWindowProcW (default handler)");
 
     DefWindowProcW(hwnd, msg, wparam, lparam)
 }
 
 unsafe fn register_wnd_class() -> ATOM {
+    log::warn!("register_wnd_class");
+
     // We generate a unique name for the new window class to prevent name collisions
     let class_name_str = format!("Baseview-{}", generate_guid());
     let mut class_name: Vec<u16> = OsStr::new(&class_name_str).encode_wide().collect();
@@ -364,6 +455,7 @@ unsafe fn register_wnd_class() -> ATOM {
 }
 
 unsafe fn unregister_wnd_class(wnd_class: ATOM) {
+    log::warn!("unregister_wnd_class");
     UnregisterClassW(wnd_class as _, null_mut());
 }
 
@@ -408,6 +500,7 @@ impl Window {
         B: FnOnce(&mut crate::Window) -> H,
         B: Send + 'static,
     {
+        log::warn!("open_parented");
         let parent = match parent.raw_window_handle() {
             RawWindowHandle::Win32(h) => h.hwnd as HWND,
             h => panic!("unsupported parent handle {:?}", h),
@@ -424,6 +517,7 @@ impl Window {
         B: FnOnce(&mut crate::Window) -> H,
         B: Send + 'static,
     {
+        log::warn!("open_as_if_parented");
         let (window_handle, _) = Self::open(true, null_mut(), options, build);
 
         window_handle
@@ -435,19 +529,25 @@ impl Window {
         B: FnOnce(&mut crate::Window) -> H,
         B: Send + 'static,
     {
+        log::warn!("open_blocking");
+
         let (_, hwnd) = Self::open(false, null_mut(), options, build);
 
         unsafe {
             let mut msg: MSG = std::mem::zeroed();
 
             loop {
+                log::warn!("open_blocking: GetMessageW");
+
                 let status = GetMessageW(&mut msg, hwnd, 0, 0);
 
                 if status == -1 {
                     break;
                 }
+                log::warn!("open_blocking: TranslateMessage");
 
                 TranslateMessage(&msg);
+                log::warn!("open_blocking: DispatchMessageW");
                 DispatchMessageW(&msg);
             }
         }
@@ -461,9 +561,12 @@ impl Window {
         B: FnOnce(&mut crate::Window) -> H,
         B: Send + 'static,
     {
+        log::warn!("open()");
+
         unsafe {
             let mut title: Vec<u16> = OsStr::new(&options.title[..]).encode_wide().collect();
             title.push(0);
+            log::warn!("open() -> register_wnd_class");
 
             let window_class = register_wnd_class();
             // todo: manage error ^
@@ -473,6 +576,7 @@ impl Window {
                 WindowScalePolicy::ScaleFactor(scale) => scale,
             };
 
+            log::warn!("open() -> WindowInfo::from_logical_size()");
             let window_info = WindowInfo::from_logical_size(options.size, scaling);
 
             let mut rect = RECT {
@@ -496,9 +600,12 @@ impl Window {
             };
 
             if !parented {
+                log::warn!("open() -> AdjustWindowRectEx");
+
                 AdjustWindowRectEx(&mut rect, flags, FALSE, 0);
             }
 
+            log::warn!("open() -> CreateWindowExW");
             let hwnd = CreateWindowExW(
                 0,
                 window_class as _,
@@ -517,6 +624,7 @@ impl Window {
 
             #[cfg(feature = "opengl")]
             let gl_context: Arc<Option<GlContext>> = Arc::new(options.gl_config.map(|gl_config| {
+                log::warn!("open() -> GL Context closure 1 -> GlContext::create()");
                 let mut handle = Win32Handle::empty();
                 handle.hwnd = hwnd as *mut c_void;
                 let handle = RawWindowHandleWrapper { handle: RawWindowHandle::Win32(handle) };
@@ -532,6 +640,7 @@ impl Window {
                 gl_context: gl_context.clone(),
             })));
 
+            log::warn!("open() -> ParentHandle::new()");
             let (parent_handle, window_handle) = ParentHandle::new(hwnd);
             let parent_handle = if parented { Some(parent_handle) } else { None };
 
@@ -549,6 +658,7 @@ impl Window {
                 gl_context,
             }));
 
+            log::warn!("open() -> SetProcessDpiAwarenessContext");
             // Only works on Windows 10 unfortunately.
             SetProcessDpiAwarenessContext(
                 winapi::shared::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE,
@@ -557,6 +667,7 @@ impl Window {
             // Now we can get the actual dpi of the window.
             let new_rect = if let WindowScalePolicy::SystemScaleFactor = options.scale {
                 // Only works on Windows 10 unfortunately.
+                log::warn!("open() -> GetDpiForWindow");
                 let dpi = GetDpiForWindow(hwnd);
                 let scale_factor = dpi as f64 / 96.0;
 
@@ -581,16 +692,22 @@ impl Window {
                 None
             };
 
+            log::warn!("open() -> SetWindowLongPtrW");
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, Box::into_raw(window_state) as *const _ as _);
+
+
+            log::warn!("open() -> SetTimer");
             SetTimer(hwnd, WIN_FRAME_TIMER, 15, None);
 
             if let Some(mut new_rect) = new_rect {
                 // Convert this desired"client rectangle" size to the actual "window rectangle"
                 // size (Because of course you have to do that).
+                log::warn!("open() -> AdjustWindowRectEx");
                 AdjustWindowRectEx(&mut new_rect, flags, 0, 0);
 
                 // Windows makes us resize the window manually. This will trigger another `WM_SIZE` event,
                 // which we can then send the user the new scale factor.
+                log::warn!("open() -> SetWindowPos");
                 SetWindowPos(
                     hwnd,
                     hwnd,
@@ -608,6 +725,7 @@ impl Window {
 
     pub fn close(&mut self) {
         unsafe {
+            log::warn!("close() -> PostMessageW");
             PostMessageW(self.hwnd, BV_WINDOW_MUST_CLOSE, 0, 0);
         }
     }
@@ -620,9 +738,9 @@ impl Window {
 
 unsafe impl HasRawWindowHandle for Window {
     fn raw_window_handle(&self) -> RawWindowHandle {
+        log::warn!("HasRawWindowHandle::raw_window_handle()");
         let mut handle = Win32Handle::empty();
         handle.hwnd = self.hwnd as *mut c_void;
-
         RawWindowHandle::Win32(handle)
     }
 }
