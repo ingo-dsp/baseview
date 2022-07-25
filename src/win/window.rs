@@ -125,6 +125,7 @@ unsafe extern "system" fn wnd_proc(
         return 0;
     }
 
+
     let window_state_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut RefCell<WindowState>;
     if !window_state_ptr.is_null() && (*window_state_ptr).try_borrow_mut().is_ok() {
         match msg {
