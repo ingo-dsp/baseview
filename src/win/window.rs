@@ -264,7 +264,6 @@ unsafe extern "system" fn wnd_proc(
                 if let Ok(mut window_state) = (*window_state_ptr).try_borrow_mut() {
                     log::warn!("WM_TIMER: borrow_mut()");
 
-                    let mut window_state = (*window_state_ptr).borrow_mut();
                     let mut window = window_state.create_window(hwnd);
                     let mut window = crate::Window::new(&mut window);
 
@@ -317,7 +316,6 @@ unsafe extern "system" fn wnd_proc(
                     log::warn!("WM_CHAR_XX_KEY_UP_DOWN: borrow_mut()");
 
 
-                    let mut window_state = (*window_state_ptr).borrow_mut();
                     let mut window = window_state.create_window(hwnd);
                     let mut window = crate::Window::new(&mut window);
 
