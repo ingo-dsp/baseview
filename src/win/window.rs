@@ -165,7 +165,7 @@ unsafe extern "system" fn wnd_proc(
                     log::warn!("WM_MOUSEMOVE: leave on_event()");
                     log::warn!("WM_MOUSEMOVE: return borrow_mut");
                 } else {
-                    log::warn!("WM_MOUSEWHEEL: try_bottor_mut() FAILED -> could not aquire borrow_mut!");
+                    log::warn!("WM_MOUSEMOVE: try_bottor_mut() FAILED -> could not aquire borrow_mut!");
                 }
                
                 return 0;
@@ -269,9 +269,9 @@ unsafe extern "system" fn wnd_proc(
 
                     if wparam == WIN_FRAME_TIMER {
 
-                        log::warn!("WM_TIMER: enter on_event()");
+                        log::warn!("WM_TIMER: enter on_frame()");
                         window_state.handler.on_frame(&mut window);
-                        log::warn!("WM_TIMER: leave on_event()");
+                        log::warn!("WM_TIMER: leave on_frame()");
                     }
                     log::warn!("WM_TIMER: return borrow_mut");
                 } else {
