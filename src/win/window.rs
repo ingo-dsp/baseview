@@ -128,16 +128,28 @@ unsafe extern "system" fn wnd_proc(
     }
 
     
-    // NB: Ableton Live unregisters us as wnd_proc and registers its own wnd_proc that eats keyboard events and delegates mouse events to us.
-    //     We would like to have all the events for ourselves and do register ourselves again directly.
-    // TODO: Do we need to keep a reference to Ableton's wnd_proc to be able to forward events that we don't handle ourselves? Like certain keyboard events, i.e. space bar to start the sequencer?
-    let current_wnd_proc: WNDPROC = {
-        let current_wnd_proc = GetWindowLongPtrW(hwnd, GWLP_WNDPROC);
-        if current_wnd_proc == 0 { None } else { Some(std::mem::transmute(current_wnd_proc)) }
-    };
-    if current_wnd_proc.map(|x| x as usize) != Some(wnd_proc as usize) {
-        SetWindowLongPtrW(hwnd, GWLP_WNDPROC, wnd_proc as LONG_PTR);
-        SetFocus(hwnd);
+    // Warning: Hack ahead! You shouldn't lightly activate this feature without a lots of integration testing proving it's value. Please read the comment below first.
+    #[cfg(feature = "enforce_user_wnd_proc")]
+    {
+        // NB: Ableton Live unregisters us as wnd_proc and registers its own wnd_proc that only delegates mouse events to us, but no keyboard events.
+        //     Instead, keyboard events are sent via the vst3 plugin api.
+        //     This is a hack to register ourselves as wnd_proc again, to directly get all the messages.
+        //     Note that at least for Ableton Live this is not necessary and the right way would be to handle the key_down/key_up events we get at the plugin level.
+        //     But this code is kept here and behind a feature flag for future us in case we detect a misbehaving DAW, so we can use this trick.
+        //     To be clear: Right now there is no reason to use this code, so better deactivate this feature flag!
+        let current_wnd_proc: WNDPROC = {
+            let current_wnd_proc = GetWindowLongPtrW(hwnd, GWLP_WNDPROC);
+            if current_wnd_proc == 0 { None } else { Some(std::mem::transmute(current_wnd_proc)) }
+        };
+        if current_wnd_proc.map(|x| x as usize) != Some(wnd_proc as usize) {
+            SetWindowLongPtrW(hwnd, GWLP_WNDPROC, wnd_proc as LONG_PTR);
+            SetFocus(hwnd);
+        }
+
+        if let WM_LBUTTONDOWN | WM_MBUTTONDOWN | WM_RBUTTONDOWN | WM_XBUTTONDOWN = msg {
+            // Set keyboard focus when we click in the window
+            SetFocus(hwnd);
+        }
     }
 
 
@@ -162,13 +174,7 @@ unsafe extern "system" fn wnd_proc(
                 window_state.handler.on_event(&mut window, event);
 
                 return 0;
-            }
-
-            // ingo: Idea to get all the keys was discussed here, but does not seem necessary: https://forum.juce.com/t/vst-plugin-isnt-getting-keystrokes/1633/11
-            // WM_GETDLGCODE => {
-            //     return DLGC_WANTALLKEYS;
-            // }
-            
+            }            
             WM_MOUSEWHEEL => {
                 let mut window_state = (*window_state_ptr).borrow_mut();
                 let mut window = window_state.create_window(hwnd);
@@ -210,9 +216,6 @@ unsafe extern "system" fn wnd_proc(
                 if let Some(button) = button {
                     let event = match msg {
                         WM_LBUTTONDOWN | WM_MBUTTONDOWN | WM_RBUTTONDOWN | WM_XBUTTONDOWN => {
-
-                            // NB: (ingo) Set keyboard focus when we click in the window
-                            SetFocus(hwnd);
 
                             // Capture the mouse cursor on button down
                             mouse_button_counter = mouse_button_counter.saturating_add(1);
