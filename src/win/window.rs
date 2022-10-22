@@ -13,7 +13,9 @@ use winapi::um::winuser::{
     WM_RBUTTONUP, WM_SHOWWINDOW, WM_SIZE, WM_SYSCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TIMER,
     WM_USER, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WS_CAPTION, WS_CHILD, WS_CLIPSIBLINGS,
     WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_POPUPWINDOW, WS_SIZEBOX, WS_VISIBLE, XBUTTON1, XBUTTON2,
+    SetFocus, GWLP_WNDPROC, WNDPROC,
 };
+use winapi::shared::basetsd::LONG_PTR;
 
 use std::cell::RefCell;
 use std::ffi::{c_void, OsStr};
@@ -125,6 +127,20 @@ unsafe extern "system" fn wnd_proc(
         return 0;
     }
 
+    
+    // NB: Ableton Live unregisters us as wnd_proc and registers its own wnd_proc that eats keyboard events and delegates mouse events to us.
+    //     We would like to have all the events for ourselves and do register ourselves again directly.
+    // TODO: Do we need to keep a reference to Ableton's wnd_proc to be able to forward events that we don't handle ourselves? Like certain keyboard events, i.e. space bar to start the sequencer?
+    let current_wnd_proc: WNDPROC = {
+        let current_wnd_proc = GetWindowLongPtrW(hwnd, GWLP_WNDPROC);
+        if current_wnd_proc == 0 { None } else { Some(std::mem::transmute(current_wnd_proc)) }
+    };
+    if current_wnd_proc.map(|x| x as usize) != Some(wnd_proc as usize) {
+        SetWindowLongPtrW(hwnd, GWLP_WNDPROC, wnd_proc as LONG_PTR);
+        SetFocus(hwnd);
+    }
+
+
     let window_state_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut RefCell<WindowState>;
     if !window_state_ptr.is_null() {
         match msg {
@@ -147,6 +163,12 @@ unsafe extern "system" fn wnd_proc(
 
                 return 0;
             }
+
+            // ingo: Idea to get all the keys was discussed here, but does not seem necessary: https://forum.juce.com/t/vst-plugin-isnt-getting-keystrokes/1633/11
+            // WM_GETDLGCODE => {
+            //     return DLGC_WANTALLKEYS;
+            // }
+            
             WM_MOUSEWHEEL => {
                 let mut window_state = (*window_state_ptr).borrow_mut();
                 let mut window = window_state.create_window(hwnd);
@@ -188,6 +210,10 @@ unsafe extern "system" fn wnd_proc(
                 if let Some(button) = button {
                     let event = match msg {
                         WM_LBUTTONDOWN | WM_MBUTTONDOWN | WM_RBUTTONDOWN | WM_XBUTTONDOWN => {
+
+                            // NB: (ingo) Set keyboard focus when we click in the window
+                            SetFocus(hwnd);
+
                             // Capture the mouse cursor on button down
                             mouse_button_counter = mouse_button_counter.saturating_add(1);
                             SetCapture(hwnd);
