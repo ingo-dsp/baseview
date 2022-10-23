@@ -13,9 +13,7 @@ use winapi::um::winuser::{
     WM_RBUTTONUP, WM_SHOWWINDOW, WM_SIZE, WM_SYSCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TIMER,
     WM_USER, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WS_CAPTION, WS_CHILD, WS_CLIPSIBLINGS,
     WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_POPUPWINDOW, WS_SIZEBOX, WS_VISIBLE, XBUTTON1, XBUTTON2,
-    SetFocus, GWLP_WNDPROC, WNDPROC,
 };
-use winapi::shared::basetsd::LONG_PTR;
 
 use std::cell::RefCell;
 use std::ffi::{c_void, OsStr};
@@ -127,32 +125,6 @@ unsafe extern "system" fn wnd_proc(
         return 0;
     }
 
-    
-    // Warning: Hack ahead! You shouldn't lightly activate this feature without a lots of integration testing proving it's value. Please read the comment below first.
-    #[cfg(feature = "enforce_user_wnd_proc")]
-    {
-        // NB: Ableton Live unregisters us as wnd_proc and registers its own wnd_proc that only delegates mouse events to us, but no keyboard events.
-        //     Instead, keyboard events are sent via the vst3 plugin api.
-        //     This is a hack to register ourselves as wnd_proc again, to directly get all the messages.
-        //     Note that at least for Ableton Live this is not necessary and the right way would be to handle the key_down/key_up events we get at the plugin level.
-        //     But this code is kept here and behind a feature flag for future us in case we detect a misbehaving DAW, so we can use this trick.
-        //     To be clear: Right now there is no reason to use this code, so better deactivate this feature flag!
-        let current_wnd_proc: WNDPROC = {
-            let current_wnd_proc = GetWindowLongPtrW(hwnd, GWLP_WNDPROC);
-            if current_wnd_proc == 0 { None } else { Some(std::mem::transmute(current_wnd_proc)) }
-        };
-        if current_wnd_proc.map(|x| x as usize) != Some(wnd_proc as usize) {
-            SetWindowLongPtrW(hwnd, GWLP_WNDPROC, wnd_proc as LONG_PTR);
-            SetFocus(hwnd);
-        }
-
-        if let WM_LBUTTONDOWN | WM_MBUTTONDOWN | WM_RBUTTONDOWN | WM_XBUTTONDOWN = msg {
-            // Set keyboard focus when we click in the window
-            SetFocus(hwnd);
-        }
-    }
-
-
     let window_state_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut RefCell<WindowState>;
     if !window_state_ptr.is_null() {
         match msg {
@@ -174,7 +146,7 @@ unsafe extern "system" fn wnd_proc(
                 window_state.handler.on_event(&mut window, event);
 
                 return 0;
-            }            
+            }
             WM_MOUSEWHEEL => {
                 let mut window_state = (*window_state_ptr).borrow_mut();
                 let mut window = window_state.create_window(hwnd);
@@ -216,7 +188,6 @@ unsafe extern "system" fn wnd_proc(
                 if let Some(button) = button {
                     let event = match msg {
                         WM_LBUTTONDOWN | WM_MBUTTONDOWN | WM_RBUTTONDOWN | WM_XBUTTONDOWN => {
-
                             // Capture the mouse cursor on button down
                             mouse_button_counter = mouse_button_counter.saturating_add(1);
                             SetCapture(hwnd);
