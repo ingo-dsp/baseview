@@ -112,7 +112,8 @@ impl<'a> Window<'a> {
     /// # TODO
     ///
     /// This is currently only supported on Linux.
-    pub fn resize(&self, size: Size) {
+    #[cfg(target_os = "linux")]
+    pub fn resize(&mut self, size: Size) {
         self.window.resize(size);
     }
 
