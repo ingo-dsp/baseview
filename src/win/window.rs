@@ -1,5 +1,5 @@
 use winapi::shared::guiddef::GUID;
-use winapi::shared::minwindef::{ATOM, FALSE, LPARAM, LRESULT, UINT, WPARAM};
+use winapi::shared::minwindef::{ATOM, FALSE, TRUE, LPARAM, LRESULT, UINT, WPARAM};
 use winapi::shared::windef::{HWND, RECT};
 use winapi::um::combaseapi::CoCreateGuid;
 use winapi::um::winuser::{
@@ -13,7 +13,7 @@ use winapi::um::winuser::{
     WM_RBUTTONUP, WM_SHOWWINDOW, WM_SIZE, WM_SYSCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TIMER,
     WM_USER, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WS_CAPTION, WS_CHILD, WS_CLIPSIBLINGS,
     WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_POPUPWINDOW, WS_SIZEBOX, WS_VISIBLE, XBUTTON1, XBUTTON2,
-    SetFocus,
+    SetFocus, MoveWindow,
 };
 
 use std::cell::RefCell;
@@ -28,10 +28,7 @@ use raw_window_handle::{HasRawWindowHandle, RawWindowHandle, Win32Handle};
 
 const BV_WINDOW_MUST_CLOSE: UINT = WM_USER + 1;
 
-use crate::{
-    Event, MouseButton, MouseEvent, PhyPoint, PhySize, ScrollDelta, WindowEvent, WindowHandler,
-    WindowInfo, WindowOpenOptions, WindowScalePolicy,
-};
+use crate::{Event, MouseButton, MouseEvent, PhyPoint, PhySize, ScrollDelta, Size, WindowEvent, WindowHandler, WindowInfo, WindowOpenOptions, WindowScalePolicy};
 
 use super::keyboard::KeyboardState;
 
@@ -71,6 +68,15 @@ impl WindowHandle {
     pub fn request_keyboard_focus(&mut self) {
         if let Some(hwnd) = self.hwnd {
             unsafe { SetFocus(hwnd); }
+        }
+    }
+
+    pub fn resize(&self, size: Size) {
+        if let Some(hwnd) = self.hwnd {
+            unsafe {
+                // TODO: Keep original position by calling GetWindowRect() instead of moving to (0, 0)!
+                MoveWindow(hwnd, 0, 0, size.width as i32, size.height as i32, TRUE);
+            }
         }
     }
 

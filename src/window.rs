@@ -34,6 +34,10 @@ impl WindowHandle {
         self.window_handle.request_keyboard_focus();
     }
 
+    pub fn resize(&self, size: Size) {
+        self.window_handle.resize(size);
+    }
+
     /// Close the window
     pub fn close(&mut self) {
         self.window_handle.close();
@@ -108,8 +112,7 @@ impl<'a> Window<'a> {
     /// # TODO
     ///
     /// This is currently only supported on Linux.
-    #[cfg(target_os = "linux")]
-    pub fn resize(&mut self, size: Size) {
+    pub fn resize(&self, size: Size) {
         self.window.resize(size);
     }
 

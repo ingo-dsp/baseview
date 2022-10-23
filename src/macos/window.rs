@@ -21,7 +21,7 @@ use raw_window_handle::{AppKitHandle, HasRawWindowHandle, RawWindowHandle};
 
 use crate::{
     Event, EventStatus, WindowEvent, WindowHandler, WindowInfo, WindowOpenOptions,
-    WindowScalePolicy,
+    WindowScalePolicy, Size,
 };
 
 use super::keyboard::KeyboardState;
@@ -47,6 +47,10 @@ impl WindowHandle {
         // TODO: not yet implemented
         //   - We can use this in the future to give the keyboard focus to a plugin's client window,
         //     so we can detect keyboard events at the client's window.
+    }
+    pub fn resize(&self, size: Size) {
+        // TODO: Implement me!
+ 
     }
     pub fn close(&mut self) {
         if self.raw_window_handle.take().is_some() {
@@ -301,6 +305,11 @@ impl Window {
         }
 
         window_handle
+    }
+
+    pub fn resize(&self, size: Size) {
+        // TODO: Implement me!
+ 
     }
 
     pub fn close(&mut self) {
