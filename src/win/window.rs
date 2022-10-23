@@ -13,6 +13,7 @@ use winapi::um::winuser::{
     WM_RBUTTONUP, WM_SHOWWINDOW, WM_SIZE, WM_SYSCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TIMER,
     WM_USER, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WS_CAPTION, WS_CHILD, WS_CLIPSIBLINGS,
     WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_POPUPWINDOW, WS_SIZEBOX, WS_VISIBLE, XBUTTON1, XBUTTON2,
+    SetFocus,
 };
 
 use std::cell::RefCell;
@@ -67,6 +68,12 @@ pub struct WindowHandle {
 }
 
 impl WindowHandle {
+    pub fn request_keyboard_focus(&mut self) {
+        if let Some(hwnd) = self.hwnd {
+            unsafe { SetFocus(hwnd); }
+        }
+    }
+
     pub fn close(&mut self) {
         if let Some(hwnd) = self.hwnd.take() {
             unsafe {

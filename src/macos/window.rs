@@ -43,6 +43,11 @@ pub struct WindowHandle {
 }
 
 impl WindowHandle {
+    pub fn request_keyboard_focus(&mut self) {
+        // TODO: not yet implemented
+        //   - We can use this in the future to give the keyboard focus to a plugin's client window,
+        //     so we can detect keyboard events at the client's window.
+    }
     pub fn close(&mut self) {
         if self.raw_window_handle.take().is_some() {
             self.close_requested.store(true, Ordering::Relaxed);

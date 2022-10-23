@@ -30,6 +30,10 @@ impl WindowHandle {
         Self { window_handle, phantom: PhantomData::default() }
     }
 
+    pub fn request_keyboard_focus(&mut self) {
+        self.window_handle.request_keyboard_focus();
+    }
+
     /// Close the window
     pub fn close(&mut self) {
         self.window_handle.close();
