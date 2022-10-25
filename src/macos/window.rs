@@ -48,7 +48,7 @@ impl WindowHandle {
         //   - We can use this in the future to give the keyboard focus to a plugin's client window,
         //     so we can detect keyboard events at the client's window.
     }
-    pub fn resize(&self, size: Size) {
+    pub fn resize(&self, size: Size, scale_factor: f32) {
         // TODO: Implement me!
  
     }

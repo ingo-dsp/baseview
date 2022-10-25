@@ -7,7 +7,9 @@ use std::thread;
 use std::time::*;
 
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle, XlibHandle};
-use xcb::ffi::xcb_screen_t;
+use x11::xlib;
+use x11::xlib::{Display, XResizeWindow};
+use xcb::ffi::{xcb_connection_t, xcb_screen_t};
 use xcb::StructPtr;
 
 use super::XcbConnection;
@@ -40,8 +42,38 @@ impl WindowHandle {
         //     so we can detect keyboard events at the client's window.
     }
     
-    pub fn resize(&self, size: Size) {
-        // TODO: not yet implemented
+    pub fn resize(&self, size: Size, scale_factor: f32) {
+        if let Some(raw_window_handle) = self.raw_window_handle {
+            let physical_width = (size.width * scale_factor as f64) as u32;
+            let physical_height = (size.height * scale_factor as f64) as u32;
+            match raw_window_handle {
+                RawWindowHandle::Xlib(h) => {
+                    unsafe {
+                        XResizeWindow(h.display as *mut Display, h.window, physical_width, physical_height);
+                    }
+                }
+                RawWindowHandle::Xcb(h) => {
+                    unsafe {
+
+                        // TODO: This is untested code.
+                        //  -> What happens if this xcb_connection goes out of scope at the end of this unsafe block?
+                        //  -> does that invoke Connection::drop()? -> Will that kill the connection?
+                        let xcb_connection = xcb::Connection::from_raw_conn(h.connection as *mut xcb_connection_t);
+
+                        xcb::configure_window(
+                            &xcb_connection,
+                            h.window,
+                            &[
+                                (xcb::CONFIG_WINDOW_WIDTH as u16, physical_width),
+                                (xcb::CONFIG_WINDOW_HEIGHT as u16, physical_height),
+                            ],
+                        );
+                        xcb_connection.flush();
+                    }
+                }
+                _ => { }
+            }
+        }
     }
 
 

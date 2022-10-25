@@ -71,7 +71,8 @@ impl WindowHandle {
         }
     }
 
-    pub fn resize(&self, size: Size) {
+    pub fn resize(&self, size: Size, _scale_factor: f32) {
+        // TODO: Use scale_factor
         if let Some(hwnd) = self.hwnd {
             unsafe {
                 // TODO: Keep original position by calling GetWindowRect() instead of moving to (0, 0)!
