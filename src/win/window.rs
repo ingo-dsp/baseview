@@ -2,19 +2,7 @@ use winapi::shared::guiddef::GUID;
 use winapi::shared::minwindef::{ATOM, FALSE, TRUE, LPARAM, LRESULT, UINT, WPARAM};
 use winapi::shared::windef::{HWND, RECT};
 use winapi::um::combaseapi::CoCreateGuid;
-use winapi::um::winuser::{
-    AdjustWindowRectEx, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
-    GetDpiForWindow, GetMessageW, GetWindowLongPtrW, LoadCursorW, PostMessageW, RegisterClassW,
-    ReleaseCapture, SetCapture, SetProcessDpiAwarenessContext, SetTimer, SetWindowLongPtrW,
-    SetWindowPos, TranslateMessage, UnregisterClassW, CS_OWNDC, GET_XBUTTON_WPARAM, GWLP_USERDATA,
-    IDC_ARROW, MSG, SWP_NOMOVE, SWP_NOZORDER, WHEEL_DELTA, WM_CHAR, WM_CLOSE, WM_CREATE,
-    WM_DPICHANGED, WM_INPUTLANGCHANGE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP,
-    WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCDESTROY, WM_RBUTTONDOWN,
-    WM_RBUTTONUP, WM_SHOWWINDOW, WM_SIZE, WM_SYSCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TIMER,
-    WM_USER, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WS_CAPTION, WS_CHILD, WS_CLIPSIBLINGS,
-    WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_POPUPWINDOW, WS_SIZEBOX, WS_VISIBLE, XBUTTON1, XBUTTON2,
-    SetFocus, MoveWindow,
-};
+use winapi::um::winuser::{AdjustWindowRectEx, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetDpiForWindow, GetMessageW, GetWindowLongPtrW, LoadCursorW, PostMessageW, RegisterClassW, ReleaseCapture, SetCapture, SetProcessDpiAwarenessContext, SetTimer, SetWindowLongPtrW, SetWindowPos, TranslateMessage, UnregisterClassW, CS_OWNDC, GET_XBUTTON_WPARAM, GWLP_USERDATA, IDC_ARROW, MSG, SWP_NOMOVE, SWP_NOZORDER, WHEEL_DELTA, WM_CHAR, WM_CLOSE, WM_CREATE, WM_DPICHANGED, WM_INPUTLANGCHANGE, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCDESTROY, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SHOWWINDOW, WM_SIZE, WM_SYSCHAR, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TIMER, WM_USER, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW, WS_CAPTION, WS_CHILD, WS_CLIPSIBLINGS, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_POPUPWINDOW, WS_SIZEBOX, WS_VISIBLE, XBUTTON1, XBUTTON2, SetFocus, MoveWindow, GetWindowRect, SWP_NOOWNERZORDER};
 
 use std::cell::RefCell;
 use std::ffi::{c_void, OsStr};
@@ -71,12 +59,12 @@ impl WindowHandle {
         }
     }
 
-    pub fn resize(&self, size: Size, _scale_factor: f32) {
-        // TODO: Use scale_factor
+    pub fn resize(&self, size: Size, scale_factor: f32) {
         if let Some(hwnd) = self.hwnd {
+            let physical_width = size.width * scale_factor as f64;
+            let physical_height = size.height * scale_factor as f64;
             unsafe {
-                // TODO: Keep original position by calling GetWindowRect() instead of moving to (0, 0)!
-                MoveWindow(hwnd, 0, 0, size.width as i32, size.height as i32, TRUE);
+                SetWindowPos(hwnd, std::ptr::null_mut(), 0, 0, physical_width as i32, physical_height as i32, SWP_NOMOVE | SWP_NOZORDER | SWP_NOOWNERZORDER);
             }
         }
     }
