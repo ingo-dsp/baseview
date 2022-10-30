@@ -5,6 +5,7 @@ use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use crate::event::{Event, EventStatus};
 use crate::window_open_options::WindowOpenOptions;
 use crate::Size;
+use crate::MouseCursor;
 
 #[cfg(target_os = "macos")]
 use crate::macos as platform;
@@ -116,6 +117,12 @@ impl<'a> Window<'a> {
     pub fn resize(&mut self, size: Size) {
         self.window.resize(size);
     }
+
+    /// Set the cursor to the given cursor type
+    pub fn set_mouse_cursor(&mut self, cursor: MouseCursor) {
+        self.window.set_mouse_cursor(cursor);
+    }
+
 
     /// If provided, then an OpenGL context will be created for this window. You'll be able to
     /// access this context through [crate::Window::gl_context].
