@@ -54,7 +54,16 @@ impl WindowHandle {
  
     }
     pub fn close(&mut self) {
-        if self.raw_window_handle.take().is_some() {
+        if let Some(window_handle) = self.raw_window_handle.take() {
+            match window_handle {
+                RawWindowHandle::AppKit(x) => {
+                    unsafe {
+                        let ns_view = x.ns_view as *mut Object;
+                        WindowState::stop_and_free(&mut *ns_view);
+                    }
+                }
+                _ => {}
+            }
             self.close_requested.store(true, Ordering::Relaxed);
         }
     }
