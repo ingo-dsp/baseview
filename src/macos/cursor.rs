@@ -18,6 +18,7 @@ impl From<MouseCursor> for Cursor {
             MouseCursor::HandGrabbing => Cursor::Native("closedHandCursor"),
             MouseCursor::Text => Cursor::Native("IBeamCursor"),
             MouseCursor::VerticalText => Cursor::Native("IBeamCursorForVerticalLayout"),
+            MouseCursor::Move => Cursor::Native("closedHandCursor"),
             MouseCursor::Copy => Cursor::Native("dragCopyCursor"),
             MouseCursor::Alias => Cursor::Native("dragLinkCursor"),
             MouseCursor::NotAllowed | MouseCursor::PtrNotAllowed => {
@@ -49,7 +50,6 @@ impl From<MouseCursor> for Cursor {
             _ => Cursor::Native("arrowCursor"),
 
             // MouseCursor::Hidden => todo!(),
-            // MouseCursor::Move => todo!(),
             // MouseCursor::AllScroll => todo!(),
             // MouseCursor::Cell => todo!(),
         }
