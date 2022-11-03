@@ -8,7 +8,7 @@ use cocoa::appkit::{
     NSApp, NSApplication, NSApplicationActivationPolicyRegular, NSBackingStoreBuffered, NSWindow,
     NSWindowStyleMask,
 };
-use cocoa::base::{id, nil, NO};
+use cocoa::base::{id, nil, YES, NO};
 use cocoa::foundation::{NSAutoreleasePool, NSPoint, NSRect, NSSize, NSString};
 use core_foundation::runloop::{
     CFRunLoop, CFRunLoopTimer, CFRunLoopTimerContext, __CFRunLoopTimer, kCFRunLoopDefaultMode,
@@ -50,15 +50,43 @@ impl WindowHandle {
         //     so we can detect keyboard events at the client's window.
     }
     pub fn resize(&self, size: Size, scale_factor: f32) {
-        // TODO: Implement me!
- 
+        if let Some(window_handle) = &self.raw_window_handle {
+            match window_handle {
+                RawWindowHandle::AppKit(handle) => {
+                    let physical_width = size.width * scale_factor as f64;
+                    let physical_height = size.height * scale_factor as f64;
+                    unsafe {
+                        let size = NSSize { width: physical_width, height: physical_height };
+
+                        let state: &mut WindowState = WindowState::from_field(&*(handle.ns_view as *mut Object));                        
+                        if let Some(handle) = state.window.gl_context() {
+                            handle.resize(physical_width, physical_height);
+                        }
+
+                        let _: () = msg_send![handle.ns_view as *mut Object, setFrameSize: size];
+                        let _: () = msg_send![handle.ns_view as *mut Object, setBoundsSize: size];
+
+
+                        let scale_factor: f64 = if handle.ns_window.is_null() {
+                            1.0
+                        } else {
+                            NSWindow::backingScaleFactor(handle.ns_window as *mut Object) as f64
+                        };
+                        let window_info = WindowInfo::from_logical_size(Size::new(physical_width, physical_height), scale_factor);
+                        state.trigger_event(Event::Window(WindowEvent::Resized(window_info)));
+                        state.trigger_frame(); // timer events are not received during resize - so trigger frame manually
+                    }
+                }
+                _ => { }
+            }
+        }
     }
     pub fn close(&mut self) {
         if let Some(window_handle) = self.raw_window_handle.take() {
             match window_handle {
-                RawWindowHandle::AppKit(x) => {
+                RawWindowHandle::AppKit(handle) => {
                     unsafe {
-                        let ns_view = x.ns_view as *mut Object;
+                        let ns_view = handle.ns_view as *mut Object;
                         WindowState::stop_and_free(&mut *ns_view);
                     }
                 }
@@ -161,9 +189,15 @@ impl Window {
             gl_context: options
                 .gl_config
                 .map(|gl_config| Self::create_gl_context(None, ns_view, gl_config)),
+                //.map(|gl_config| Self::create_gl_context(None, handle.ns_view as *mut Object, gl_config)),
         };
 
         let window_handle = Self::init(true, window, build);
+
+        unsafe {
+            // msg_send![handle.ns_view as id, setAutoresizesSubviews:YES]
+        }
+
 
         unsafe {
             let _: id = msg_send![handle.ns_view as *mut Object, addSubview: ns_view];

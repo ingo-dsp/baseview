@@ -11,7 +11,7 @@ use cocoa::appkit::{
     NSOpenGLProfileVersionLegacy, NSOpenGLView, NSView,
 };
 use cocoa::base::{id, nil, YES};
-
+use cocoa::foundation::NSSize;
 use core_foundation::base::TCFType;
 use core_foundation::bundle::{CFBundleGetBundleWithIdentifier, CFBundleGetFunctionPointerForName};
 use core_foundation::string::CFString;
@@ -132,6 +132,13 @@ impl GlContext {
         unsafe {
             self.context.flushBuffer();
             let () = msg_send![self.view, setNeedsDisplay: YES];
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn resize(&self, new_width: f64, new_height: f64) {
+        unsafe {
+            let _ = self.view.setFrameSize(NSSize { width: new_width, height: new_height });
         }
     }
 }

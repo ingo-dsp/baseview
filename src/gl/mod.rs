@@ -106,4 +106,9 @@ impl GlContext {
     pub fn swap_buffers(&self) {
         self.context.swap_buffers();
     }
+
+    #[cfg(target_os = "macos")]
+    pub fn resize(&self, new_width: f64, new_height: f64,) {
+        self.context.resize(new_width, new_height)
+    }
 }
