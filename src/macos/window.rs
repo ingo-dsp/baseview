@@ -189,15 +189,9 @@ impl Window {
             gl_context: options
                 .gl_config
                 .map(|gl_config| Self::create_gl_context(None, ns_view, gl_config)),
-                //.map(|gl_config| Self::create_gl_context(None, handle.ns_view as *mut Object, gl_config)),
         };
 
         let window_handle = Self::init(true, window, build);
-
-        unsafe {
-            // msg_send![handle.ns_view as id, setAutoresizesSubviews:YES]
-        }
-
 
         unsafe {
             let _: id = msg_send![handle.ns_view as *mut Object, addSubview: ns_view];
