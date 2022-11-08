@@ -7,7 +7,8 @@ use std::thread;
 use std::time::*;
 
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle, XlibHandle};
-use x11::xlib::{Display, XResizeWindow, XSetInputFocus};
+use x11::xlib;
+use x11::xlib::{Display, XResizeWindow};
 use xcb::ffi::{xcb_connection_t, xcb_screen_t};
 use xcb::StructPtr;
 
@@ -39,36 +40,8 @@ impl WindowHandle {
         // TODO: not yet implemented
         //   - We can use this in the future to give the keyboard focus to a plugin's client window,
         //     so we can detect keyboard events at the client's window.
-
-        if let Some(raw_window_handle) = self.raw_window_handle {
-            match raw_window_handle {
-                RawWindowHandle::Xlib(h) => {
-                    unsafe {
-                        XSetInputFocus(h.display as *mut Display, h.window, x11::xlib::RevertToParent, x11::xlib::CurrentTime);
-                    }
-                }
-                RawWindowHandle::Xcb(h) => {
-                    unsafe {
-
-                        // TODO: This is untested code.
-                        //  -> What happens if this xcb_connection goes out of scope at the end of this unsafe block?
-                        //  -> does that invoke Connection::drop()? -> Will that kill the connection?
-                        let xcb_connection = xcb::Connection::from_raw_conn(h.connection as *mut xcb_connection_t);
-
-                        xcb::set_input_focus(
-                            &xcb_connection,
-                            xcb::ffi::XCB_INPUT_FOCUS_PARENT as u8,
-                            h.window,
-                            xcb::ffi::base::XCB_CURRENT_TIME,
-                        );
-                        xcb_connection.flush();
-                    }
-                }
-                _ => { }
-            }
-        }
     }
-
+    
     pub fn resize(&self, size: Size, scale_factor: f32) {
         if let Some(raw_window_handle) = self.raw_window_handle {
             let physical_width = (size.width * scale_factor as f64) as u32;
@@ -746,9 +719,7 @@ impl Window {
                 );
             }
 
-            _ => {
-                println!("test");
-            }
+            _ => {}
         }
     }
 }
