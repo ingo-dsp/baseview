@@ -1,7 +1,7 @@
 use winapi::{
     shared::ntdef::PCWSTR,
     um::winuser::{
-        IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_WAIT,
+        IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_WAIT, IDC_SIZENS, IDC_SIZEWE, IDC_SIZENESW, IDC_SIZENWSE,
     },
 };
 
@@ -22,16 +22,10 @@ impl MouseCursor {
             MouseCursor::Working | MouseCursor::PtrWorking => IDC_WAIT,
             MouseCursor::NotAllowed | MouseCursor::PtrNotAllowed => IDC_NO,
             MouseCursor::Crosshair => IDC_CROSS,
-            MouseCursor::EResize
-            | MouseCursor::WResize
-            | MouseCursor::EwResize
-            | MouseCursor::ColResize => IDC_SIZEALL,
-            MouseCursor::NResize
-            | MouseCursor::SResize
-            | MouseCursor::NsResize
-            | MouseCursor::RowResize => IDC_SIZEALL,
-            MouseCursor::NeResize | MouseCursor::SwResize | MouseCursor::NeswResize => IDC_SIZEALL,
-            MouseCursor::NwResize | MouseCursor::SeResize | MouseCursor::NwseResize => IDC_SIZEALL,
+            MouseCursor::EResize | MouseCursor::WResize | MouseCursor::EwResize | MouseCursor::ColResize => IDC_SIZEWE,
+            MouseCursor::NResize | MouseCursor::SResize | MouseCursor::NsResize | MouseCursor::RowResize => IDC_SIZENS,
+            MouseCursor::NeResize | MouseCursor::SwResize | MouseCursor::NeswResize => IDC_SIZENESW,
+            MouseCursor::NwResize | MouseCursor::SeResize | MouseCursor::NwseResize => IDC_SIZENWSE,
             _ => IDC_ARROW,
         }
     }
