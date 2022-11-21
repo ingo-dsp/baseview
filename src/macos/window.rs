@@ -49,12 +49,23 @@ impl WindowHandle {
         //   - We can use this in the future to give the keyboard focus to a plugin's client window,
         //     so we can detect keyboard events at the client's window.
     }
-    pub fn resize(&self, size: Size, scale_factor: f32) {
+    pub fn resize(&self, size: Size) {
         if let Some(window_handle) = &self.raw_window_handle {
             match window_handle {
                 RawWindowHandle::AppKit(handle) => {
-                    let physical_width = size.width * scale_factor as f64;
-                    let physical_height = size.height * scale_factor as f64;
+                    let scale_factor = unsafe {
+                        let ns_window: *mut Object = msg_send![handle.ns_view as id, window];
+                        let scale_factor: f64 = if ns_window.is_null() { 1.0 } else { NSWindow::backingScaleFactor(ns_window) as f64 };
+                        scale_factor
+                    };
+                    
+                    let physical_width = size.width * if cfg!(target_os = "macos") { 1.0 } else { 
+                        scale_factor // TODO: Untested code! Do we need this multiplication? -> Test on Windows + Linux!
+                    };
+                    let physical_height = size.height * if cfg!(target_os = "macos") { 1.0 } else {
+                        scale_factor // TODO: Untested code! Do we need this multiplication? -> Test on Windows + Linux!
+                    };
+
                     unsafe {
                         let size = NSSize { width: physical_width, height: physical_height };
 
@@ -67,11 +78,7 @@ impl WindowHandle {
                         let _: () = msg_send![handle.ns_view as *mut Object, setBoundsSize: size];
 
 
-                        let scale_factor: f64 = if handle.ns_window.is_null() {
-                            1.0
-                        } else {
-                            NSWindow::backingScaleFactor(handle.ns_window as *mut Object) as f64
-                        };
+                        
                         let window_info = WindowInfo::from_logical_size(Size::new(physical_width, physical_height), scale_factor);
                         state.trigger_event(Event::Window(WindowEvent::Resized(window_info)));
                         state.trigger_frame(); // timer events are not received during resize - so trigger frame manually

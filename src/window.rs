@@ -35,8 +35,8 @@ impl WindowHandle {
         self.window_handle.request_keyboard_focus();
     }
 
-    pub fn resize(&self, size: Size, scale_factor: f32) {
-        self.window_handle.resize(size, scale_factor);
+    pub fn resize(&self, size: Size) {
+        self.window_handle.resize(size);
     }
 
     /// Close the window
