@@ -59,19 +59,11 @@ impl WindowHandle {
                         scale_factor
                     };
                     
-                    let physical_width = size.width * if cfg!(target_os = "macos") { 1.0 } else { 
-                        scale_factor // TODO: Untested code! Do we need this multiplication? -> Test on Windows + Linux!
-                    };
-                    let physical_height = size.height * if cfg!(target_os = "macos") { 1.0 } else {
-                        scale_factor // TODO: Untested code! Do we need this multiplication? -> Test on Windows + Linux!
-                    };
-
                     unsafe {
-                        let size = NSSize { width: physical_width, height: physical_height };
 
                         let state: &mut WindowState = WindowState::from_field(&*(handle.ns_view as *mut Object));                        
                         if let Some(handle) = state.window.gl_context() {
-                            handle.resize(physical_width, physical_height);
+                            handle.resize(size.width, size.height);
                         }
 
                         let _: () = msg_send![handle.ns_view as *mut Object, setFrameSize: size];
@@ -79,7 +71,7 @@ impl WindowHandle {
 
 
                         
-                        let window_info = WindowInfo::from_logical_size(Size::new(physical_width, physical_height), scale_factor);
+                        let window_info = WindowInfo::from_logical_size(size, scale_factor);
                         state.trigger_event(Event::Window(WindowEvent::Resized(window_info)));
                         state.trigger_frame(); // timer events are not received during resize - so trigger frame manually
                     }
