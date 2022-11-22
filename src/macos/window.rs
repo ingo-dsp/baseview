@@ -20,8 +20,7 @@ use objc::{msg_send, runtime::Object, sel, sel_impl};
 use raw_window_handle::{AppKitHandle, HasRawWindowHandle, RawWindowHandle};
 
 use crate::{
-    Event, EventStatus, MouseCursor, WindowEvent, WindowHandler, WindowInfo, WindowOpenOptions,
-    WindowScalePolicy, Size,
+    Event, EventStatus, MouseCursor, WindowEvent, WindowHandler, WindowInfo, WindowOpenOptions, Size,
 };
 
 use super::cursor::Cursor;
@@ -252,10 +251,7 @@ impl Window {
             app.setActivationPolicy_(NSApplicationActivationPolicyRegular);
         }
 
-        let scaling = match options.scale {
-            WindowScalePolicy::ScaleFactor(scale) => scale,
-            WindowScalePolicy::SystemScaleFactor => 1.0,
-        };
+        let scaling = 1.0; // MacOS deals with scaling on its own.
 
         let window_info = WindowInfo::from_logical_size(options.size, scaling);
 
