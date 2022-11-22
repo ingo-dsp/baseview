@@ -65,10 +65,10 @@ impl WindowHandle {
         }
     }
 
-    pub fn resize(&self, size: Size, scale_factor: f32) {
+    pub fn resize(&self, size: Size) {
         if let Some(hwnd) = self.hwnd {
-            let physical_width = size.width * scale_factor as f64;
-            let physical_height = size.height * scale_factor as f64;
+            let physical_width = size.width;
+            let physical_height = size.height;
             unsafe {
                 SetWindowPos(hwnd, std::ptr::null_mut(), 0, 0, physical_width as i32, physical_height as i32, SWP_NOMOVE | SWP_NOZORDER | SWP_NOOWNERZORDER);
             }
