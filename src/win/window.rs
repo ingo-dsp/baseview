@@ -9,6 +9,7 @@ use winapi::um::winuser::{AdjustWindowRectEx, CreateWindowExW, DefWindowProcW, D
 use std::cell::RefCell;
 use std::ffi::{c_void, OsStr};
 use std::marker::PhantomData;
+use std::ops::DerefMut;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr::null_mut;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -21,7 +22,7 @@ const BV_WINDOW_MUST_CLOSE: UINT = WM_USER + 1;
 
 use crate::{
     Event, MouseButton, MouseEvent, PhyPoint, PhySize, ScrollDelta, WindowEvent, WindowHandler,
-    WindowInfo, WindowOpenOptions, WindowScalePolicy, MouseCursor, Size
+    WindowInfo, WindowOpenOptions, MouseCursor, Size
 };
 
 use super::keyboard::KeyboardState;
@@ -125,6 +126,24 @@ impl Drop for ParentHandle {
     }
 }
 
+unsafe fn on_dpi_changed(window_state_ptr: *mut RefCell<WindowState>, dpi: u32, hwnd: HWND) {
+    let mut window_state = (*window_state_ptr).borrow_mut();
+    let mut window = window_state.create_window(hwnd);
+    let mut window = crate::Window::new(&mut window);
+
+    let scale_factor = dpi as f64 / 96.0;
+    window_state.window_info = WindowInfo::from_physical_size(
+        window_state.window_info.physical_size(),
+        scale_factor,
+    );
+
+    let window_info = window_state.window_info;
+
+    window_state
+        .handler
+        .on_event(&mut window, Event::Window(WindowEvent::Resized(window_info)));
+}
+
 unsafe extern "system" fn wnd_proc(
     hwnd: HWND, msg: UINT, wparam: WPARAM, lparam: LPARAM,
 ) -> LRESULT {
@@ -135,6 +154,7 @@ unsafe extern "system" fn wnd_proc(
 
     let window_state_ptr = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut RefCell<WindowState>;
     if !window_state_ptr.is_null() {
+
         match msg {
             WM_MOUSEMOVE => {
                 let mut window_state = (*window_state_ptr).borrow_mut();
@@ -231,13 +251,31 @@ unsafe extern "system" fn wnd_proc(
                 }
             }
             WM_TIMER => {
-                let mut window_state = (*window_state_ptr).borrow_mut();
-                let mut window = window_state.create_window(hwnd);
-                let mut window = crate::Window::new(&mut window);
+                let dpi_changed = {
+                    let mut window_state = (*window_state_ptr).borrow_mut();
+                    let mut window = window_state.create_window(hwnd);
+                    let mut window = crate::Window::new(&mut window);
 
-                if wparam == WIN_FRAME_TIMER {
-                    window_state.handler.on_frame(&mut window);
+                    if wparam == WIN_FRAME_TIMER {
+                        window_state.handler.on_frame(&mut window);
+                    }
+                    
+                    // We don't always receive WM_DPI_CHANGED - so do a change detection here
+                    unsafe {
+                        let dpi = GetDpiForWindow(hwnd) as u32;
+                        if window_state.dpi != dpi {
+                            window_state.dpi = dpi;
+                            Some(dpi)
+                        } else {
+                            None
+                        }
+                    }
+                };
+
+                if let Some(dpi) = dpi_changed {
+                    on_dpi_changed(window_state_ptr, dpi, hwnd);
                 }
+
                 return 0;
             }
             WM_CLOSE => {
@@ -293,50 +331,13 @@ unsafe extern "system" fn wnd_proc(
                     .on_event(&mut window, Event::Window(WindowEvent::Resized(window_info)));
             }
             WM_DPICHANGED => {
-                let mut window_state = (*window_state_ptr).borrow_mut();
-
-                // To avoid weirdness with the realtime borrow checker.
-                let new_rect = {
-                    if let WindowScalePolicy::SystemScaleFactor = window_state.scale_policy {
-                        let dpi = (wparam & 0xFFFF) as u16 as u32;
-                        let scale_factor = dpi as f64 / 96.0;
-
-                        window_state.window_info = WindowInfo::from_logical_size(
-                            window_state.window_info.logical_size(),
-                            scale_factor,
-                        );
-
-                        Some((
-                            RECT {
-                                left: 0,
-                                top: 0,
-                                // todo: check if usize fits into i32
-                                right: window_state.window_info.physical_size().width as i32,
-                                bottom: window_state.window_info.physical_size().height as i32,
-                            },
-                            window_state.dw_style,
-                        ))
-                    } else {
-                        None
-                    }
+                let dpi = {
+                    let mut window_state = (*window_state_ptr).borrow_mut();
+                    let dpi = (wparam & 0xFFFF) as u16 as u32;
+                    window_state.dpi = dpi;
+                    dpi
                 };
-                if let Some((mut new_rect, dw_style)) = new_rect {
-                    // Convert this desired "client rectangle" size to the actual "window rectangle"
-                    // size (Because of course you have to do that).
-                    AdjustWindowRectEx(&mut new_rect, dw_style, 0, 0);
-
-                    // Windows makes us resize the window manually. This will trigger another `WM_SIZE` event,
-                    // which we can then send the user the new scale factor.
-                    SetWindowPos(
-                        hwnd,
-                        hwnd,
-                        new_rect.left as i32,
-                        new_rect.top as i32,
-                        new_rect.right - new_rect.left,
-                        new_rect.bottom - new_rect.top,
-                        SWP_NOZORDER | SWP_NOMOVE,
-                    );
-                }
+                on_dpi_changed(window_state_ptr, dpi, hwnd);
             }
             WM_NCDESTROY => {
                 let window_state = Box::from_raw(window_state_ptr);
@@ -388,8 +389,8 @@ struct WindowState {
     keyboard_state: KeyboardState,
     mouse_button_counter: usize,
     handler: Box<dyn WindowHandler>,
-    scale_policy: WindowScalePolicy,
     dw_style: u32,
+    dpi: u32,
 
     #[cfg(feature = "opengl")]
     gl_context: Arc<Option<GlContext>>,
@@ -482,12 +483,8 @@ impl Window {
             let window_class = register_wnd_class();
             // todo: manage error ^
 
-            let scaling = match options.scale {
-                WindowScalePolicy::SystemScaleFactor => 1.0,
-                WindowScalePolicy::ScaleFactor(scale) => scale,
-            };
-
-            let window_info = WindowInfo::from_logical_size(options.size, scaling);
+            let initial_scaling = 1.0; // NOTE: How to know the system scaling before creating the window?
+            let window_info = WindowInfo::from_logical_size(options.size, initial_scaling);
 
             let mut rect = RECT {
                 left: 0,
@@ -538,16 +535,22 @@ impl Window {
                 GlContext::create(&handle, gl_config).expect("Could not create OpenGL context")
             }));
 
-            #[cfg(not(feature = "opengl"))]
-            let handler = Box::new(build(&mut crate::Window::new(&mut Window { hwnd })));
-            #[cfg(feature = "opengl")]
             let handler = Box::new(build(&mut crate::Window::new(&mut Window {
                 hwnd,
+                #[cfg(feature = "opengl")]
                 gl_context: gl_context.clone(),
             })));
 
             let (parent_handle, window_handle) = ParentHandle::new(hwnd);
             let parent_handle = if parented { Some(parent_handle) } else { None };
+
+            // Only works on Windows 10 unfortunately.
+            SetProcessDpiAwarenessContext(
+                winapi::shared::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE,
+            );
+
+            // Only works on Windows 10 unfortunately.
+            let dpi = GetDpiForWindow(hwnd);
 
             let mut window_state = Box::new(RefCell::new(WindowState {
                 window_class,
@@ -556,47 +559,42 @@ impl Window {
                 keyboard_state: KeyboardState::new(),
                 mouse_button_counter: 0,
                 handler,
-                scale_policy: options.scale,
                 dw_style: flags,
+                dpi,
 
                 #[cfg(feature = "opengl")]
                 gl_context,
             }));
 
-            // Only works on Windows 10 unfortunately.
-            SetProcessDpiAwarenessContext(
-                winapi::shared::windef::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE,
-            );
 
-            // Now we can get the actual dpi of the window.
-            let new_rect = if let WindowScalePolicy::SystemScaleFactor = options.scale {
-                // Only works on Windows 10 unfortunately.
-                let dpi = GetDpiForWindow(hwnd);
-                let scale_factor = dpi as f64 / 96.0;
 
+            // Adapt scale_factor without resizing actual window - we commit to the size we requested initially to prevent flickering etc.
+            // TODO: Find out if that is actually fine.
+
+            let scale_factor = dpi as f64 / 96.0;
+            let new_rect = if initial_scaling != scale_factor {
                 let mut window_state = window_state.get_mut();
-                if window_state.window_info.scale() != scale_factor {
-                    window_state.window_info = WindowInfo::from_logical_size(
-                        window_state.window_info.logical_size(),
-                        scale_factor,
-                    );
+                window_state.window_info = WindowInfo::from_logical_size(
+                    window_state.window_info.logical_size(),
+                    scale_factor,
+                );
 
-                    Some(RECT {
-                        left: 0,
-                        top: 0,
-                        // todo: check if usize fits into i32
-                        right: window_state.window_info.physical_size().width as i32,
-                        bottom: window_state.window_info.physical_size().height as i32,
-                    })
-                } else {
-                    None
-                }
+                // Do a dummy-resize in order to generate a WM_SIZE event, so the new dpi
+                // gets propagated to the client.
+                let new_rect = RECT {
+                    left: 0,
+                    top: 0,
+                    // todo: check if usize fits into i32
+                    right: window_state.window_info.physical_size().width as i32,
+                    bottom: window_state.window_info.physical_size().height as i32,
+                };
+
+                Some(new_rect)
             } else {
                 None
             };
 
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, Box::into_raw(window_state) as *const _ as _);
-            SetTimer(hwnd, WIN_FRAME_TIMER, 15, None);
 
             if let Some(mut new_rect) = new_rect {
                 // Convert this desired"client rectangle" size to the actual "window rectangle"
@@ -615,6 +613,8 @@ impl Window {
                     SWP_NOZORDER | SWP_NOMOVE,
                 );
             }
+
+            SetTimer(hwnd, WIN_FRAME_TIMER, 15, None);
 
             (window_handle, hwnd)
         }
