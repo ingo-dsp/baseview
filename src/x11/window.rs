@@ -14,7 +14,7 @@ use xcb::StructPtr;
 use super::XcbConnection;
 use crate::{
     Event, MouseButton, MouseCursor, MouseEvent, PhyPoint, PhySize, ScrollDelta, Size, WindowEvent,
-    WindowHandler, WindowInfo, WindowOpenOptions, WindowScalePolicy,
+    WindowHandler, WindowInfo, WindowOpenOptions,
 };
 
 use super::keyboard::{convert_key_press_event, convert_key_release_event, key_mods};
@@ -282,10 +282,7 @@ impl Window {
             &[(xcb::GC_FOREGROUND, screen.black_pixel()), (xcb::GC_GRAPHICS_EXPOSURES, 0)],
         );
 
-        let scaling = match options.scale {
-            WindowScalePolicy::SystemScaleFactor => xcb_connection.get_scaling().unwrap_or(1.0),
-            WindowScalePolicy::ScaleFactor(scale) => scale,
-        };
+        let scaling = 1.0; // TODO
 
         let window_info = WindowInfo::from_logical_size(options.size, scaling);
 
