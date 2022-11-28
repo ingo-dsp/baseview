@@ -268,7 +268,8 @@ impl Window {
                 rect,
                 NSWindowStyleMask::NSTitledWindowMask
                     | NSWindowStyleMask::NSClosableWindowMask
-                    | NSWindowStyleMask::NSMiniaturizableWindowMask,
+                    | NSWindowStyleMask::NSMiniaturizableWindowMask
+                    | NSWindowStyleMask::NSResizableWindowMask,
                 NSBackingStoreBuffered,
                 NO,
             );
