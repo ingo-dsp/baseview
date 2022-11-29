@@ -1,6 +1,6 @@
 use std::ffi::c_void;
 
-use cocoa::appkit::{NSEvent, NSView, NSWindow};
+use cocoa::appkit::{NSColor, NSEvent, NSView, NSWindow};
 use cocoa::base::{id, nil, BOOL, NO, YES};
 use cocoa::foundation::{NSArray, NSPoint, NSRect, NSSize};
 
@@ -140,6 +140,10 @@ unsafe fn create_view_class() -> &'static Class {
     class.add_method(
         sel!(updateTrackingAreas:),
         update_tracking_areas as extern "C" fn(&Object, Sel, id),
+    );
+    class.add_method(
+        sel!(drawRect:),
+        draw_rect as extern "C" fn(&Object, Sel, id),
     );
 
     class.add_method(sel!(mouseMoved:), mouse_moved as extern "C" fn(&Object, Sel, id));
@@ -325,6 +329,18 @@ extern "C" fn update_tracking_areas(this: &Object, _self: Sel, _: id) {
         let tracking_area = NSArray::objectAtIndex(tracking_areas, 0);
 
         reinit_tracking_area(this, tracking_area);
+    }
+}
+
+
+// Prevent flickering when showing window initially. This sets a background color.
+extern "C" fn draw_rect(this: &Object, _self: Sel, dirty_rect: id) {
+    use cocoa::appkit::*;
+    unsafe {
+        let gray = 32.0 / 255.0;
+        let bgcolor = cocoa::appkit::NSColor::colorWithRed_green_blue_alpha_(dirty_rect, gray, gray, gray, 1.0);
+        let _: () = msg_send![bgcolor, setFill];
+        NSRectFill(msg_send![this, frame]); // TODO: use dirty_rect instead!
     }
 }
 

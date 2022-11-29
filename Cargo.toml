@@ -33,7 +33,7 @@ winapi = { version = "0.3.8", features = ["libloaderapi", "winuser", "windef", "
 uuid = { version = "0.8", features = ["v4"], optional = true }
 
 [target.'cfg(target_os="macos")'.dependencies]
-cocoa = "0.24.0"
+cocoa = "0.24"
 core-foundation = "0.9.1"
 objc = "0.2.7"
 uuid = { version = "0.8", features = ["v4"] }
