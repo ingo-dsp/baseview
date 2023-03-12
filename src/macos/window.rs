@@ -61,6 +61,8 @@ impl WindowHandle {
                     unsafe {
 
                         let state: &mut WindowState = WindowState::from_field(&*(handle.ns_view as *mut Object));                        
+
+                        #[cfg(feature = "opengl")]
                         if let Some(handle) = state.window.gl_context() {
                             handle.resize(size.width, size.height);
                         }
