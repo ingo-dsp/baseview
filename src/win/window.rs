@@ -329,6 +329,11 @@ unsafe extern "system" fn wnd_proc(
                 window_state
                     .handler
                     .on_event(&mut window, Event::Window(WindowEvent::Resized(window_info)));
+
+                window_state
+                    .handler
+                    .on_frame(&mut window);
+
             }
             WM_DPICHANGED => {
                 let dpi = {
