@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::*;
 
-use raw_window_handle::{HasRawWindowHandle, RawWindowHandle, XlibHandle};
+use raw_window_handle::{HasRawWindowHandle, RawWindowHandle, XlibWindowHandle, HasRawDisplayHandle, RawDisplayHandle, XlibDisplayHandle};
 use x11::xlib::{Display, XResizeWindow, XSetInputFocus};
 use xcb::ffi::{xcb_connection_t, xcb_screen_t};
 use xcb::StructPtr;
@@ -26,6 +26,7 @@ use crate::{
 };
 
 pub struct WindowHandle {
+    raw_display_handle: Option<RawDisplayHandle>,
     raw_window_handle: Option<RawWindowHandle>,
     close_requested: Arc<AtomicBool>,
     is_open: Arc<AtomicBool>,
@@ -40,67 +41,64 @@ impl WindowHandle {
         //   - We can use this in the future to give the keyboard focus to a plugin's client window,
         //     so we can detect keyboard events at the client's window.
 
-        if let Some(raw_window_handle) = self.raw_window_handle {
-            match raw_window_handle {
-                RawWindowHandle::Xlib(h) => {
-                    unsafe {
-                        XSetInputFocus(h.display as *mut Display, h.window, x11::xlib::RevertToParent, x11::xlib::CurrentTime);
-                    }
+        match (self.raw_display_handle, self.raw_window_handle) {
+            (Some(RawDisplayHandle::Xlib(d)), Some(RawWindowHandle::Xlib(h))) => {
+                unsafe {
+                    XSetInputFocus(d.display as *mut Display, h.window, x11::xlib::RevertToParent, x11::xlib::CurrentTime);
                 }
-                RawWindowHandle::Xcb(h) => {
-                    unsafe {
-
-                        // TODO: This is untested code.
-                        //  -> What happens if this xcb_connection goes out of scope at the end of this unsafe block?
-                        //  -> does that invoke Connection::drop()? -> Will that kill the connection?
-                        let xcb_connection = xcb::Connection::from_raw_conn(h.connection as *mut xcb_connection_t);
-
-                        xcb::set_input_focus(
-                            &xcb_connection,
-                            xcb::ffi::XCB_INPUT_FOCUS_PARENT as u8,
-                            h.window,
-                            xcb::ffi::base::XCB_CURRENT_TIME,
-                        );
-                        xcb_connection.flush();
-                    }
-                }
-                _ => { }
             }
+            (Some(RawDisplayHandle::Xcb(d)), Some(RawWindowHandle::Xcb(h))) => {
+                unsafe {
+
+                    // TODO: This is untested code.
+                    //  -> What happens if this xcb_connection goes out of scope at the end of this unsafe block?
+                    //  -> does that invoke Connection::drop()? -> Will that kill the connection?
+                    let xcb_connection = xcb::Connection::from_raw_conn(d.connection as *mut xcb_connection_t);
+
+                    xcb::set_input_focus(
+                        &xcb_connection,
+                        xcb::ffi::XCB_INPUT_FOCUS_PARENT as u8,
+                        h.window,
+                        xcb::ffi::base::XCB_CURRENT_TIME,
+                    );
+                    xcb_connection.flush();
+                }
+            }
+            _ => { }
         }
     }
 
     pub fn resize(&self, size: Size) {
-        if let Some(raw_window_handle) = self.raw_window_handle {
-            let physical_width = size.width as u32;
-            let physical_height = size.height as u32;
-            match raw_window_handle {
-                RawWindowHandle::Xlib(h) => {
-                    unsafe {
-                        XResizeWindow(h.display as *mut Display, h.window, physical_width, physical_height);
-                    }
+        let physical_width = size.width as u32;
+        let physical_height = size.height as u32;
+        match (self.raw_display_handle, self.raw_window_handle) {
+            (Some(RawDisplayHandle::Xlib(d)), Some(RawWindowHandle::Xlib(h))) => {
+                unsafe {
+                    XResizeWindow(d.display as *mut Display, h.window, physical_width, physical_height);
                 }
-                RawWindowHandle::Xcb(h) => {
-                    unsafe {
-
-                        // TODO: This is untested code.
-                        //  -> What happens if this xcb_connection goes out of scope at the end of this unsafe block?
-                        //  -> does that invoke Connection::drop()? -> Will that kill the connection?
-                        let xcb_connection = xcb::Connection::from_raw_conn(h.connection as *mut xcb_connection_t);
-
-                        xcb::configure_window(
-                            &xcb_connection,
-                            h.window,
-                            &[
-                                (xcb::CONFIG_WINDOW_WIDTH as u16, physical_width),
-                                (xcb::CONFIG_WINDOW_HEIGHT as u16, physical_height),
-                            ],
-                        );
-                        xcb_connection.flush();
-                    }
-                }
-                _ => { }
             }
+            (Some(RawDisplayHandle::Xcb(d)), Some(RawWindowHandle::Xcb(h))) => {
+                unsafe {
+
+                    // TODO: This is untested code.
+                    //  -> What happens if this xcb_connection goes out of scope at the end of this unsafe block?
+                    //  -> does that invoke Connection::drop()? -> Will that kill the connection?
+                    let xcb_connection = xcb::Connection::from_raw_conn(d.connection as *mut xcb_connection_t);
+
+                    xcb::configure_window(
+                        &xcb_connection,
+                        h.window,
+                        &[
+                            (xcb::CONFIG_WINDOW_WIDTH as u16, physical_width),
+                            (xcb::CONFIG_WINDOW_HEIGHT as u16, physical_height),
+                        ],
+                    );
+                    xcb_connection.flush();
+                }
+            }
+            _ => { }
         }
+
     }
 
 
@@ -127,7 +125,7 @@ unsafe impl HasRawWindowHandle for WindowHandle {
             }
         }
 
-        RawWindowHandle::Xlib(XlibHandle::empty())
+        RawWindowHandle::Xlib(XlibWindowHandle::empty())
     }
 }
 
@@ -142,6 +140,7 @@ impl ParentHandle {
         let is_open = Arc::new(AtomicBool::new(true));
 
         let handle = WindowHandle {
+            raw_display_handle: None,
             raw_window_handle: None,
             close_requested: Arc::clone(&close_requested),
             is_open: Arc::clone(&is_open),
@@ -750,11 +749,17 @@ impl Window {
 
 unsafe impl HasRawWindowHandle for Window {
     fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut handle = XlibHandle::empty();
+        let mut handle = XlibWindowHandle::empty();
         handle.window = self.window_id as c_ulong;
-        handle.display = self.xcb_connection.conn.get_raw_dpy() as *mut c_void;
-
         RawWindowHandle::Xlib(handle)
+    }
+}
+
+unsafe impl HasRawDisplayHandle for Window {
+    fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut handle = XlibDisplayHandle::empty();
+        handle.display = self.xcb_connection.conn.get_raw_dpy() as *mut c_void;
+        RawDisplayHandle::Xlib(handle)
     }
 }
 
